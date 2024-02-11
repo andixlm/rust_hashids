@@ -11,5 +11,5 @@ include = [
 ]
 
 [dependencies]
-failure = "0.1"
 regex = "1.5"
+thiserror = "1.0"

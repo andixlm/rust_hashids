@@ -5,9 +5,9 @@ const SEPARTOR_DIV: f32 = 3.5;
 const GUARD_DIV: u32 = 12;
 const MIN_ALPHABET_LENGTH: usize = 16;
 
-#[derive(Debug, failure::Fail)]
+#[derive(Debug, thiserror::Error)]
 pub enum HashIdsError {
-    #[fail(display = "invalid alphabet length")]
+    #[error("invalid alphabet length")]
     InvalidAlphabetLength,
 }
 
