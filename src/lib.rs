@@ -1,12 +1,3 @@
-#![crate_name = "hashids"]
-
-#[macro_use]
-extern crate failure;
-extern crate regex;
-
-use regex::Regex;
-use std::collections::HashMap;
-
 const DEFAULT_ALPHABET: &'static str =
     "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
 const DEFAULT_SEPARATORS: &'static str = "cfhistuCFHISTU";
@@ -14,7 +5,7 @@ const SEPARTOR_DIV: f32 = 3.5;
 const GUARD_DIV: u32 = 12;
 const MIN_ALPHABET_LENGTH: usize = 16;
 
-#[derive(Debug, Fail)]
+#[derive(Debug, failure::Fail)]
 pub enum HashIdsError {
     #[fail(display = "invalid alphabet length")]
     InvalidAlphabetLength,
@@ -35,17 +26,17 @@ impl HashIds {
         min_hash_length: usize,
         alphabet: String,
     ) -> Result<HashIds, HashIdsError> {
-        let min_length = HashIds::get_min_hash_length(min_hash_length);
-        let unique_alphabet = HashIds::get_unique_alphabet(alphabet);
+        let min_length = Self::get_min_hash_length(min_hash_length);
+        let unique_alphabet = Self::get_unique_alphabet(alphabet);
 
         if unique_alphabet.len() < MIN_ALPHABET_LENGTH {
             return Err(HashIdsError::InvalidAlphabetLength);
         }
 
-        let (t_separators, mut t_alphabet) = HashIds::get_separators(unique_alphabet);
-        let mut shuffled_separators = HashIds::hashids_shuffle(t_separators.clone(), salt.clone());
+        let (t_separators, mut t_alphabet) = Self::get_separators(unique_alphabet);
+        let mut shuffled_separators = Self::hashids_shuffle(t_separators.clone(), salt.clone());
 
-        if HashIds::need_manipulate(shuffled_separators.len(), t_alphabet.len()) == true {
+        if Self::need_manipulate(shuffled_separators.len(), t_alphabet.len()) == true {
             let mut seps_len = ((t_alphabet.len() as f32) / SEPARTOR_DIV) as usize;
             if seps_len == 1 {
                 seps_len += 1;
@@ -61,7 +52,7 @@ impl HashIds {
             }
         }
 
-        let mut shuffled_alphabet = HashIds::hashids_shuffle(t_alphabet.clone(), salt.clone());
+        let mut shuffled_alphabet = Self::hashids_shuffle(t_alphabet.clone(), salt.clone());
         let guard_count = (shuffled_alphabet.len() as f32 / GUARD_DIV as f32).ceil() as usize;
 
         let t_guards;
@@ -75,7 +66,7 @@ impl HashIds {
         }
 
         Ok(HashIds {
-            salt: salt,
+            salt,
             min_hash_length: min_length,
             guards: t_guards,
             separators: shuffled_separators,
@@ -87,11 +78,11 @@ impl HashIds {
         salt: String,
         min_hash_length: usize,
     ) -> Result<HashIds, HashIdsError> {
-        HashIds::new(salt, min_hash_length, DEFAULT_ALPHABET.to_string())
+        Self::new(salt, min_hash_length, DEFAULT_ALPHABET.to_string())
     }
 
     pub fn new_with_salt(salt: String) -> Result<HashIds, HashIdsError> {
-        HashIds::new_with_salt_and_min_length(salt, 0)
+        Self::new_with_salt_and_min_length(salt, 0)
     }
 
     fn need_manipulate(slen: usize, alen: usize) -> bool {
@@ -111,7 +102,7 @@ impl HashIds {
     }
 
     fn get_separators(alphabet: String) -> (String, String) {
-        HashIds::get_non_duplicated_string(DEFAULT_SEPARATORS.to_string(), alphabet)
+        Self::get_non_duplicated_string(DEFAULT_SEPARATORS.to_string(), alphabet)
     }
 
     fn hashids_shuffle(alphabet: String, salt: String) -> String {
@@ -150,8 +141,8 @@ impl HashIds {
     }
 
     fn get_non_duplicated_string(separators: String, alphabet: String) -> (String, String) {
-        let mut check_separator_map = HashMap::new();
-        let mut check_alphabet_map = HashMap::new();
+        let mut check_separator_map = std::collections::HashMap::new();
+        let mut check_alphabet_map = std::collections::HashMap::new();
 
         let mut modified_separators = String::new();
         let mut modified_alphabet = String::new();
@@ -181,7 +172,7 @@ impl HashIds {
 
     fn get_unique_alphabet(alphabet: String) -> String {
         let mut unique_alphabet: String = String::new();
-        let mut check_map = HashMap::new();
+        let mut check_map = std::collections::HashMap::new();
 
         for c in alphabet.chars() {
             if !check_map.contains_key(&c) {
@@ -194,17 +185,17 @@ impl HashIds {
     }
 
     pub fn encode_hex(&self, hex: String) -> String {
-        let regex1 = Regex::new(r"^[0-9a-fA-F]+$").unwrap();
+        let regex1 = regex::Regex::new(r"^[0-9a-fA-F]+$").unwrap();
         if regex1.is_match(&hex.to_string()) == false {
             return String::new();
         }
 
         let mut numbers: Vec<i64> = Vec::new();
-        let regex2 = Regex::new(r"[\w\W]{1,12}").unwrap();
+        let regex2 = regex::Regex::new(r"[\w\W]{1,12}").unwrap();
         for matcher in regex2.find_iter(&hex.to_string()) {
             let mut num = String::new();
             num.push('1');
-            num.push_str(&hex[matcher.0..matcher.1]);
+            num.push_str(&hex[matcher.start()..matcher.end()]);
             let v: i64 = i64::from_str_radix(&num.to_string(), 16).unwrap();
             numbers.push(v);
         }
@@ -247,14 +238,12 @@ impl HashIds {
     }
 
     fn _decode(&self, hash: String) -> Vec<i64> {
-        use regex::Regex;
-
         let mut regexp = String::new();
         regexp.push('[');
         regexp.push_str(&self.guards[..]);
         regexp.push(']');
 
-        let re = Regex::new(&regexp[..]).unwrap();
+        let re = regex::Regex::new(&regexp[..]).unwrap();
         let t_hash = re.replace_all(&hash[..], " ");
 
         let split1: Vec<&str> = t_hash[..].split_whitespace().collect();
@@ -274,8 +263,8 @@ impl HashIds {
         regexp2.push_str(&self.separators[..]);
         regexp2.push(']');
 
-        let re2 = Regex::new(&regexp2[..]).unwrap();
-        hash_breakdown = re2.replace_all(&hash_breakdown[..], " ");
+        let re2 = regex::Regex::new(&regexp2[..]).unwrap();
+        hash_breakdown = re2.replace_all(&hash_breakdown[..], " ").to_string();
 
         let split2: Vec<&str> = hash_breakdown[..].split_whitespace().collect();
 
@@ -291,8 +280,8 @@ impl HashIds {
             buffer.push_str(&alphabet.clone()[..]);
 
             let alpha_len = alphabet.len();
-            alphabet = HashIds::hashids_shuffle(alphabet, buffer[0..alpha_len].to_string());
-            ret.push(HashIds::unhash(sub_hash, alphabet.clone()));
+            alphabet = Self::hashids_shuffle(alphabet, buffer[0..alpha_len].to_string());
+            ret.push(Self::unhash(sub_hash, alphabet.clone()));
         }
 
         let check_hash = self._encode(&ret);
@@ -329,7 +318,7 @@ impl HashIds {
             }
 
             let v = input_slice[i] as usize;
-            let pos = HashIds::index_of(alpha_slice, v as u8);
+            let pos = Self::index_of(alpha_slice, v as u8);
             let pow_size = (len - i - 1) as u32;
             number += (pos * alpha_len.pow(pow_size)) as i64;
             i += 1;
@@ -378,11 +367,9 @@ impl HashIds {
             let mut buffer = ret.clone();
             buffer.push_str(&self.salt[..]);
             buffer.push_str(&t_alphabet[..]);
-            t_alphabet = HashIds::hashids_shuffle(
-                t_alphabet.clone(),
-                buffer[0..t_alphabet.len()].to_string(),
-            );
-            let last = HashIds::hash(*number, t_alphabet.clone());
+            t_alphabet =
+                Self::hashids_shuffle(t_alphabet.clone(), buffer[0..t_alphabet.len()].to_string());
+            let last = Self::hash(*number, t_alphabet.clone());
 
             ret_str.push_str(&last[..]);
 
@@ -411,7 +398,7 @@ impl HashIds {
 
         let half_len = t_alphabet.len() / 2;
         while ret_str.len() < self.min_hash_length {
-            t_alphabet = HashIds::hashids_shuffle(t_alphabet.clone(), t_alphabet.clone());
+            t_alphabet = Self::hashids_shuffle(t_alphabet.clone(), t_alphabet.clone());
             let mut t_ret = "".to_string();
             t_ret.push_str(&t_alphabet[half_len..]);
             t_ret.push_str(&ret_str[..]);
